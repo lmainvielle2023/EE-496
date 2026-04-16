@@ -3,6 +3,7 @@
 #include "motor_control.h"
 #include "terrain_predict.h"
 #include "ble_central.h"
+#include "power_calc.h"
 
 // Task handles
 TaskHandle_t ManagerTaskHandle;
@@ -14,12 +15,13 @@ void TaskCore1_Worker(void *pvParameters);
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { delay(10); }
-    Serial.println("Starting ESP32-S3 E-Bike Controller...");
+    delay(1000); // Give serial monitor time to attach
+    Serial.println("Starting ESP32 E-Bike Controller...");
 
     // Initialize Subsystems
     initMotorControl();
     initTerrainPredict();
+    initPowerCalc();
     initBLECentral();
 
     // Create Manager Task pinned to Core 0
@@ -62,6 +64,9 @@ void TaskCore0_Manager(void *pvParameters) {
     while (true) {
         // Run BLE Scan & Data Extraction
         updateBLECentral();
+
+        // Run power math (averages and torque)
+        updatePowerCalc();
 
         // Run GPS Parse & Terrain WiFi Prediction
         updateTerrainPredict();

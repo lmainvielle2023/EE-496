@@ -5,6 +5,5 @@
 
 void initLoadCell();
 float getPedalForce();
-float calculateWatts(float force_lbs, float rpm);
 
 #endif // LOAD_CELL_H

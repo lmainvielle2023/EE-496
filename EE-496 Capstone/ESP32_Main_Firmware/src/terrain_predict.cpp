@@ -16,16 +16,9 @@ void initTerrainPredict() {
     // Setup GPS Serial (NEO-6M typically defaults to 9600 baud)
     GPS_Serial.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 
-    // Setup WiFi Connection
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connecting to WiFi");
-    
-    // Non-blocking WiFi initialization (handled in background task)
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("\nWiFi Connected!");
+    // WiFi disabled for now - uncomment and update secrets.h when terrain API is needed
+    // WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.println("WiFi skipped (not configured).");
 }
 
 void updateTerrainPredict() {

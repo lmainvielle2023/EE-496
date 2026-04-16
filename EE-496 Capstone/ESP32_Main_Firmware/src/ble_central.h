@@ -3,8 +3,8 @@
 
 #include <Arduino.h>
 
-// Global shared variable tracking target watts
-extern double targetWatts;
+// Global shared variable tracking rider power
+extern double riderWatts;
 
 // Initialization Routine
 void initBLECentral();

@@ -1,23 +1,16 @@
 #include "motor_control.h"
 #include "system_pins.h"
-#include "pid_gains.h"
-#include <PID_v1.h>
+#include "ble_central.h" // Gives access to riderWatts global
 
 // Global Pulses
 volatile long encoderPulses = 0;
 
-// Variables for PID
-double Setpoint = 0;   // Target RPM/Power
-double Input = 0;      // Real RPM
-double Output = 0;     // PWM adjustment
-
-// Setup PID (Direct Action)
-PID motorPID(&Input, &Output, &Setpoint, PID_KP, PID_KI, PID_KD, DIRECT);
+// Setup constants
+const float GOAL_WATTS = 200.0f;
+const float MAX_MOTOR_WATTS = 200.0f; // Scale reference for prototype
 
 // IRAM_ATTR places the routine into Internal RAM for fast execution on ESP32
 void IRAM_ATTR encoderISR() {
-    // Read Phase B to determine direction.
-    // If Phase B is identically high when Phase A rises, they're spinning one way.
     int phaseB = digitalRead(ENCODER_B_PIN);
     if (phaseB == HIGH) {
         encoderPulses++;
@@ -46,49 +39,59 @@ void initMotorControl() {
     // Attach hardware interrupt for Phase A RISING edge
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), encoderISR, RISING);
 
-    // Initialize PID settings
-    motorPID.SetMode(AUTOMATIC);
-    motorPID.SetOutputLimits(0, 255); // 8-bit PWM maximum
-
     Serial.println("Motor Control Initialized.");
 }
 
-// Variables for RPM calculation
+// Variables for RPM calculation (useful for future speed limiting)
 unsigned long lastRPMCalcTime = 0;
 long lastEncoderPulses = 0;
 const double GEAR_RATIO = 34.0;
 const double PULSES_PER_REV = 11.0;
 const double TOTAL_PPR = GEAR_RATIO * PULSES_PER_REV;
+double currentMotorRPM = 0;
 
 void updateMotorControl() {
-    // Read the current Target Setpoint (usually fetched from Manager via BLE)
-    // Read the current Terrain Resistance (calculated from GPS Slope)
-    // Convert current encoder pulses into an RPM (Input)
+    // 1. Calculate the motor power required to reach the 200W Goal
+    float requiredMotorWatts = GOAL_WATTS - (float)riderWatts;
     
-    // Safely copy encoder pulses by temporarily disabling interrupts
+    // Clamp to 0 (motor doesn't fight rider or brake them)
+    if (requiredMotorWatts < 0.0f) {
+        requiredMotorWatts = 0.0f;
+    }
+    
+    // 2. Map required watts to PWM (Open Loop Feed-Forward)
+    // Prototype Mapping: PWM = 255 * (req / MAX_W)
+    float pwmRaw = 255.0f * (requiredMotorWatts / MAX_MOTOR_WATTS);
+    
+    // Clamp PWM to 8-bit safety limits
+    if (pwmRaw > 255.0f) pwmRaw = 255.0f;
+    if (pwmRaw < 0.0f) pwmRaw = 0.0f;
+    
+    int pwmOutput = (int)pwmRaw;
+    
+    // 3. Keep encoder logic active just in case we need RPM data for future features
     noInterrupts();
     long currentPulses = encoderPulses;
     interrupts();
 
-    // Calculate accurate RPM based on time elapsed since last loop
     unsigned long currentTime = micros();
     unsigned long elapsedTime = currentTime - lastRPMCalcTime;
 
     if (elapsedTime > 0) {
         long deltaPulses = currentPulses - lastEncoderPulses;
-        // Formula: (delta pulses / total pulses per revolution) / (elapsed minutes)
-        // elapsedTime is in microseconds. To convert to minutes = elapsedTime / 60,000,000.0
-        Input = ((double)deltaPulses / TOTAL_PPR) / ((double)elapsedTime / 60000000.0);
-        
+        currentMotorRPM = ((double)deltaPulses / TOTAL_PPR) / ((double)elapsedTime / 60000000.0);
         lastEncoderPulses = currentPulses;
         lastRPMCalcTime = currentTime;
     }
 
-    // Compute new PID
-    motorPID.Compute();
-
-    // Set Motor Driver logic (example forward logic with PID PWM)
-    digitalWrite(MOTOR_IN1_PIN, HIGH);
-    digitalWrite(MOTOR_IN2_PIN, LOW);
-    analogWrite(MOTOR_ENA_PIN, (int)Output);
+    // 4. Set Motor Driver
+    if (pwmOutput > 0) {
+        digitalWrite(MOTOR_IN1_PIN, HIGH);
+        digitalWrite(MOTOR_IN2_PIN, LOW); // Forward
+    } else {
+        digitalWrite(MOTOR_IN1_PIN, LOW);
+        digitalWrite(MOTOR_IN2_PIN, LOW); // Coast
+    }
+    
+    analogWrite(MOTOR_ENA_PIN, pwmOutput);
 }
