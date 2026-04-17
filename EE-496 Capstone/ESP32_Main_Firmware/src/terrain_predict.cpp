@@ -21,13 +21,13 @@ static bool gpsRecoveryLogged = false;
 
 constexpr unsigned long ELEV_INTERVAL_MS = 3000;
 constexpr unsigned long GPS_LOG_INTERVAL_MS = 3000;
-constexpr unsigned long GPS_FIX_TIMEOUT_MS = 15000;
+constexpr unsigned long GPS_FIX_TIMEOUT_MS = 300000; // 5 minutes
 constexpr unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
 
 void initTerrainPredict() {
     Serial.println("Initializing Terrain Predict...");
 
-    GPS_Serial.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    GPS_Serial.begin(38400, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     terrainInitMs = millis();
 
     WiFi.mode(WIFI_STA);
