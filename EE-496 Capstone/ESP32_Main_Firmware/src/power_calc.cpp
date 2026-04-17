@@ -67,7 +67,7 @@ void updatePowerCalc() {
     riderWatts = (double)(torqueNm * angVel);
 
     const unsigned long now = millis();
-    if (now - lastPowerLogMs >= POWER_LOG_INTERVAL_MS) {
+    if (isBLEConnected() && now - lastPowerLogMs >= POWER_LOG_INTERVAL_MS) {
         lastPowerLogMs = now;
         Serial.print("Left Force: ");
         Serial.print(leftForceLbs, 2);

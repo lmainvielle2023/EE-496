@@ -162,6 +162,10 @@ void initBLECentral() {
     Serial.println("BLE Central Initialized.");
 }
 
+bool isBLEConnected() {
+    return connectedLeft || connectedRight;
+}
+
 void updateBLECentral() {
     if (doConnectLeft) {
       if (connectToServerLeft()) {

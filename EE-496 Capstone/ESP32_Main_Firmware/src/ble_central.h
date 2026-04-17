@@ -12,4 +12,7 @@ void initBLECentral();
 // Core 0 Manager Routine
 void updateBLECentral();
 
+// Connection state
+bool isBLEConnected();
+
 #endif // BLE_CENTRAL_H
