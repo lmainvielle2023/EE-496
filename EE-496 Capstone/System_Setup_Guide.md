@@ -1,87 +1,331 @@
-# EE-496 Capstone: Scaled E-Bike System Architecture & Setup Guide
+# EE-496 Capstone Setup And Run Guide
 
-This document provides a comprehensive overview of the dual-crank smart e-bike prototype, detailing the network topology, hardware wiring, and firmware setup required for the presentation loop.
+This guide covers the full command-line workflow to build, flash, calibrate, and run the dual-crank e-bike prototype in this repository.
 
----
+## 1. Repository Layout
 
-## 1. Network Topology Overview
-The system utilizes a distributed `Star` topology operating over **Bluetooth Low Energy (BLE)**.
+- `XIAO_Crank_Firmware/`
+  Left and right pedal firmware. The left and right pedals now use separate PlatformIO environments:
+  - `xiaoble_left`
+  - `xiaoble_right`
+- `ESP32_Main_Firmware/`
+  Central controller firmware for BLE collection, power math, terrain logic, and motor control.
+- `System_Setup_Guide.md`
+  This setup guide.
 
-*   **1 Central Node (ESP32):** Manages all mathematics, acts as a BLE Central Hub concurrently digesting data streams, tracks GPS via Serial UART, and commands the L298N PWM.
-*   **2 Peripheral Nodes (Seeed XIAO):** One on the left pedal, one on the right. They act purely as data-gathering broadcasters.
+## 2. Hardware Overview
 
----
+### Pedal Nodes
 
-## 2. Hardware Wiring Guide
+Each pedal node uses:
 
-### A. The Crank Sensor Nodes (Seeed XIAO nRF52840)
-You will flash the **Left Pedal** with a standard Seeed XIAO nRF52840, and the **Right Pedal** with the Seeed XIAO nRF52840 **Sense** (because the Sense variant contains the built-in LSM6DS3 IMU required for RPM tracking).
+- A Seeed XIAO nRF52840 board
+- An HX711 load-cell amplifier
+- A ShangHJ load cell
 
-**Both Nodes require an HX711 Load Cell Amplifier:**
-*   **HX711 DOUT** ➔ XIAO Pad **D2**
-*   **HX711 SCK** ➔ XIAO Pad **D3**
-*   **HX711 VCC** ➔ XIAO 3.3V
-*   **HX711 GND** ➔ XIAO GND
+The right pedal node also uses the onboard LSM6DS3 IMU for RPM.
 
-### B. The Main Controller (ESP32)
-The central hub coordinates the L298N Motor driver, the Rotary Encoder (for measuring actual motor speed), and the NEO-6M GPS modules.
+### HX711 Wiring
 
-**Encoder Sensors (Wheel Speed / Motor Speed):**
-*   **Encoder Phase A** ➔ ESP32 Pin **32** *(Requires external/internal pullup)*
-*   **Encoder Phase B** ➔ ESP32 Pin **33** *(Requires external/internal pullup)*
+Wire both pedal nodes the same way:
 
-**L298N Motor Controller (Drive):**
-*   **ENA (PWM Speed)** ➔ ESP32 Pin **14**
-*   **IN1 (Direction 1)** ➔ ESP32 Pin **27**
-*   **IN2 (Direction 2)** ➔ ESP32 Pin **26**
+- `HX711 DOUT` -> `XIAO D2`
+- `HX711 SCK` -> `XIAO D3`
+- `HX711 VCC` -> `XIAO 3.3V`
+- `HX711 GND` -> `XIAO GND`
 
-**U-blox NEO-6M (GPS Module):**
-*   **TX Pin** ➔ ESP32 Pin **16** (RX2)
-*   **RX Pin** ➔ ESP32 Pin **17** (TX2)
+### ESP32 Wiring
 
----
+- Encoder phase A -> `GPIO 32`
+- Encoder phase B -> `GPIO 33`
+- L298N `ENA` -> `GPIO 14`
+- L298N `IN1` -> `GPIO 27`
+- L298N `IN2` -> `GPIO 26`
+- GPS `TX` -> `GPIO 16`
+- GPS `RX` -> `GPIO 17`
 
-## 3. Firmware Flashing & Configuration
+## 3. Software Prerequisites
 
-Because the Left and Right pedals use the exact same code logic in slightly different ways, they share a single unified PlatformIO project to prevent you from managing two codebases!
+From the repository root:
 
-### A. Flashing the Right Pedal (The "Sense" Node)
-1. Open `/XIAO_Crank_Firmware/src/main.cpp`.
-2. Ensure the macro is set to true: `#define IS_RIGHT_NODE true`
-3. Plug in the Seeed Sense board via USB-C.
-4. Flash the code via PlatformIO:
-   ```bash
-   cd "XIAO_Crank_Firmware"
-   pio run -t upload
-   ```
-5. *What it does:* Broadcasts BLE as `CRANK_RIGHT`. Initializes the `HX711` on D2/D3. Internally powers on the `LSM6DS3` IMU on the hidden `Wire1` bus (Address 0x6A). Transmits Force & RPM.
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone"
+```
 
-### B. Flashing the Left Pedal (The Standard Node)
-1. Open `/XIAO_Crank_Firmware/src/main.cpp`.
-2. Change the macro to false: `#define IS_RIGHT_NODE false`
-3. Plug in the standard Seeed XIAO board via USB-C.
-4. Flash the code via PlatformIO!
-5. *What it does:* Broadcasts BLE as `CRANK_LEFT`. Skips the IMU logic. Transmits Force only.
+Install PlatformIO if needed:
 
-### C. Flashing the Main Controller (ESP32)
-1. Ensure the XIAO board is unplugged, and plug in the ESP32.
-2. Flash the code via PlatformIO:
-   ```bash
-   cd "ESP32_Main_Firmware"
-   pio run -t upload
-   ```
-3. *What it does:* 
-   * **Core 0:** Bootstraps the BLE Client, scans for `CRANK_RIGHT` and `CRANK_LEFT`, connects concurrently to both, and ingests `targetWatts` and `RPM`. Also handles high-latency Terrain prediction (HTTP/Wi-Fi).
-   * **Core 1:** Fast loop. Runs the math `requiredMotorWatts = 200W - riderWatts` and directly manipulates the 8-bit PWM on Pin 14 to assist the rider proportionally.
+```bash
+python3 -m pip install --user platformio
+python3 -m platformio --version
+```
 
----
+If `pio` is already on your `PATH`, you can use `pio ...` directly. If not, replace `pio` with `python3 -m platformio` in the commands below.
 
-## 4. Tuning the Physics (Future)
+To list serial devices before flashing:
 
-When you are ready to adjust the 200W goal or the PWM maximums for your Capstone demonstration, navigate to `ESP32_Main_Firmware/src/motor_control.cpp`.
+```bash
+pio device list
+```
+
+On this machine, a typical USB serial device looked like:
+
+```bash
+/dev/cu.usbmodem101
+```
+
+## 4. Important Firmware Notes
+
+### Pedal role selection
+
+The pedal role is no longer selected by editing `main.cpp`.
+
+Use:
+
+- `xiaoble_left` for the left pedal
+- `xiaoble_right` for the right pedal
+
+The current pedal PlatformIO configuration is in `XIAO_Crank_Firmware/platformio.ini`.
+
+### Board selection note
+
+The current `XIAO_Crank_Firmware/platformio.ini` uses:
+
+```ini
+board = xiaoblesense
+```
+
+for both pedal environments. If your left pedal is a non-Sense XIAO BLE, update the board target before flashing that node.
+
+### Wi-Fi secrets for the ESP32
+
+Before flashing the ESP32, edit:
+
+`ESP32_Main_Firmware/include/secrets.h`
+
+and set:
+
+- `WIFI_SSID`
+- `WIFI_PASSWORD`
+- `ELEVATION_API_KEY`
+
+## 5. Build Commands
+
+### Build both pedal firmwares
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/XIAO_Crank_Firmware"
+pio run -e xiaoble_left -e xiaoble_right
+```
+
+### Build the ESP32 firmware
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/ESP32_Main_Firmware"
+pio run
+```
+
+## 6. Flashing Commands
+
+### Flash the left pedal
+
+Plug in the left pedal XIAO, then run:
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/XIAO_Crank_Firmware"
+pio run -e xiaoble_left -t upload
+```
+
+If PlatformIO does not pick the correct serial port automatically:
+
+```bash
+pio run -e xiaoble_left -t upload --upload-port /dev/cu.usbmodem101
+```
+
+### Flash the right pedal
+
+Plug in the right pedal XIAO, then run:
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/XIAO_Crank_Firmware"
+pio run -e xiaoble_right -t upload
+```
+
+If needed, specify the port:
+
+```bash
+pio run -e xiaoble_right -t upload --upload-port /dev/cu.usbmodem101
+```
+
+### Flash the ESP32
+
+Plug in the ESP32, then run:
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/ESP32_Main_Firmware"
+pio run -e esp32dev -t upload
+```
+
+If needed, specify the port:
+
+```bash
+pio run -e esp32dev -t upload --upload-port /dev/cu.usbmodem101
+```
+
+## 7. Serial Monitor Commands
+
+### Left or right pedal serial monitor
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/XIAO_Crank_Firmware"
+pio device monitor -b 115200
+```
+
+### ESP32 serial monitor
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/ESP32_Main_Firmware"
+pio device monitor -b 115200
+```
+
+If you need to bind the monitor to a specific port:
+
+```bash
+pio device monitor -b 115200 -p /dev/cu.usbmodem101
+```
+
+## 8. Load-Cell Zeroing And Calibration
+
+The pedal firmware no longer blindly trusts boot-time tare. It now tries to zero only when the pedal appears unloaded and stable. If startup zero is skipped, the serial monitor will tell you.
+
+### Zero the load cell
+
+1. Open the pedal serial monitor.
+2. Make sure the pedal is unloaded.
+3. Send:
+
+```text
+t
+```
+
+The firmware will only zero if the signal is stable and near zero.
+
+### Enter calibration mode
+
+Send:
+
+```text
+c
+```
+
+Then place a known weight on the load cell and adjust:
+
+- `+` -> increase calibration factor by `100`
+- `-` -> decrease calibration factor by `100`
+- `f` -> increase calibration factor by `10`
+- `g` -> decrease calibration factor by `10`
+
+When the reported force matches the known load, copy the printed calibration factor back into:
+
+`XIAO_Crank_Firmware/src/load_cell.cpp`
+
+Current line:
 
 ```cpp
-const float GOAL_WATTS = 200.0f;          // The total power the system attempts to maintain.
-const float MAX_MOTOR_WATTS = 200.0f;     // The upper bound mapping for 255 PWM.
+float calibrationFactor = -2280.0f;
 ```
-If you change `MAX_MOTOR_WATTS` to 100.0f, the motor will push twice as hard (hit 255 PWM) for the exact same `requiredMotorWatts` calculation!
+
+Then rebuild and reflash that pedal.
+
+## 9. Normal Bring-Up Sequence
+
+Use this order each time you want to run the full system:
+
+1. Flash the left pedal with `xiaoble_left`.
+2. Flash the right pedal with `xiaoble_right`.
+3. Flash the ESP32 with `esp32dev`.
+4. Open the right pedal serial monitor and confirm it reports force and RPM.
+5. Open the left pedal serial monitor and confirm it reports force.
+6. Open the ESP32 serial monitor and confirm it discovers:
+   - `CRANK_LEFT`
+   - `CRANK_RIGHT`
+7. Confirm the ESP32 prints successful BLE connections and begins using pedal force/RPM data.
+
+## 10. What Each Node Does
+
+### Left pedal node
+
+- Reads force from the HX711/load cell
+- Filters the force reading
+- Zeroes safely only when unloaded/stable
+- Broadcasts BLE as `CRANK_LEFT`
+
+### Right pedal node
+
+- Reads force from the HX711/load cell
+- Reads gyro data from the onboard IMU over I2C
+- Estimates RPM from gyro magnitude
+- Broadcasts BLE as `CRANK_RIGHT`
+
+### ESP32 central
+
+- Scans for `CRANK_LEFT` and `CRANK_RIGHT`
+- Subscribes to force notifications from both pedals
+- Subscribes to RPM notifications from the right pedal
+- Computes rider power from fresh force and RPM data
+- Runs terrain prediction and motor control
+
+## 11. Troubleshooting
+
+### `pio` command not found
+
+Use:
+
+```bash
+python3 -m platformio run
+```
+
+instead of:
+
+```bash
+pio run
+```
+
+### Load cell reads zero all the time
+
+- Check HX711 wiring on `D2` and `D3`
+- Confirm the load cell amplifier is powered from `3.3V`
+- Open the pedal serial monitor and send `t` with no load on the pedal
+- Recalibrate using a known weight
+
+### Force gets stuck after unplugging or bad wiring
+
+The current firmware should now clear stale force to zero after a short timeout. If it does not, recheck the HX711 wiring and rebuild/flash the updated firmware.
+
+### ESP32 does not connect to the pedals
+
+- Confirm the left node advertises `CRANK_LEFT`
+- Confirm the right node advertises `CRANK_RIGHT`
+- Make sure both pedals are powered before the ESP32 starts scanning
+- Watch the ESP32 serial output for `Found LEFT Node`, `Found RIGHT Node`, and `Successfully connected`
+
+### RPM is zero on the right pedal
+
+- Confirm the right node was flashed with `xiaoble_right`
+- Confirm the board is the Sense variant with the onboard LSM6DS3 IMU
+- Spin the crank and watch the right pedal serial output
+
+## 12. Verified Build Commands
+
+These builds completed successfully with the current repository state:
+
+```bash
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/XIAO_Crank_Firmware"
+pio run -e xiaoble_left -e xiaoble_right
+
+cd "/Users/lmainvielle/Desktop/EE-496/EE-496 Capstone/ESP32_Main_Firmware"
+pio run
+```
+
+## 13. Power Calculation Assumption
+
+The ESP32 now ignores stale force and RPM samples, but the power math still assumes the ShangHJ load-cell output represents tangential pedal force. If the sensor mounting measures a different force component, the watt calculation will still need a geometry correction.

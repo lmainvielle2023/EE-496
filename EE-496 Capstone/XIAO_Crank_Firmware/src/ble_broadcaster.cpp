@@ -47,6 +47,8 @@ void initBLEBroadcaster(bool isRightNode) {
 }
 
 void updateBLEBroadcaster(float current_force, float current_rpm) {
+    BLE.poll();
+
     // Only update if connected to a central device to save power/bandwidth
     BLEDevice central = BLE.central();
     if (central) {
