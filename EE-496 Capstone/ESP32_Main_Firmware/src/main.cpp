@@ -18,11 +18,11 @@ void setup() {
     delay(1000); // Give serial monitor time to attach
     Serial.println("Starting ESP32 E-Bike Controller...");
 
-    // Initialize Subsystems
+    // Initialize Subsystems — WiFi must come before BLE for coexistence
     initMotorControl();
     initTerrainPredict();
     initPowerCalc();
-    initBLECentral();
+    initBLECentral();  // BLE init after WiFi is connected
 
     // Create Manager Task pinned to Core 0
     // Handles BLE, GPS, WiFi, and HTTP requests

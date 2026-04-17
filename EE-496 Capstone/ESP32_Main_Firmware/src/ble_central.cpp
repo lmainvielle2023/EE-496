@@ -27,6 +27,8 @@ static BLEClient* pClientLeft = nullptr;
 static BLEClient* pClientRight = nullptr;
 
 static BLEScan* pBLEScan;
+static unsigned long lastScanTime = 0;
+#define SCAN_INTERVAL_MS 5000
 
 // Notify Callbacks
 static void notifyCallbackLeftForce(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
@@ -173,9 +175,10 @@ void updateBLECentral() {
       doConnectRight = false;
     }
     
-    // Only scan if one of them is missing
-    if (!connectedLeft || !connectedRight) {
-        pBLEScan->start(2, false);
-        pBLEScan->clearResults(); 
+    // Only scan if one of them is missing, throttled to avoid blocking HTTP calls
+    if ((!connectedLeft || !connectedRight) && (millis() - lastScanTime >= SCAN_INTERVAL_MS)) {
+        lastScanTime = millis();
+        pBLEScan->start(2, true);  // non-blocking
+        pBLEScan->clearResults();
     }
 }

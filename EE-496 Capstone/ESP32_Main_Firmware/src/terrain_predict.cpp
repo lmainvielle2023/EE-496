@@ -8,6 +8,7 @@
 #include <TinyGPSPlus.h>
 #include <ArduinoJson.h>
 #include <math.h>
+#include <esp_wifi.h>
 
 TinyGPSPlus gps;
 HardwareSerial GPS_Serial(2);
@@ -20,6 +21,7 @@ void initTerrainPredict() {
 
     GPS_Serial.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 
+    WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.printf("Trying SSID: '%s' Password: '%s'\n", WIFI_SSID, WIFI_PASSWORD);
     Serial.print("Connecting to WiFi");
@@ -30,6 +32,7 @@ void initTerrainPredict() {
         attempts++;
     }
     if (WiFi.status() == WL_CONNECTED) {
+        esp_wifi_set_ps(WIFI_PS_NONE);  // disable power-save for stable BLE coexistence
         Serial.println("\nWiFi connected: " + WiFi.localIP().toString());
     } else {
         Serial.println("\nWiFi failed — elevation API unavailable");
@@ -46,7 +49,10 @@ void updateTerrainPredict() {
     if (millis() - lastElevCall < ELEV_INTERVAL_MS) return;
     lastElevCall = millis();
 
-    if (WiFi.status() != WL_CONNECTED) return;
+    if (WiFi.status() != WL_CONNECTED) {
+        WiFi.reconnect();
+        return;
+    }
 
     double myLat = gps.location.lat();
     double myLng = gps.location.lng();
