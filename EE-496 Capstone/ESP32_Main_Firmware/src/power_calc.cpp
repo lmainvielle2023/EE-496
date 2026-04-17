@@ -7,6 +7,7 @@ constexpr float CRANK_LENGTH_M = 0.170f;
 constexpr float LBS_TO_NEWTONS = 4.44822f;
 constexpr unsigned long FORCE_STALE_MS = 400;
 constexpr unsigned long RPM_STALE_MS = 400;
+constexpr unsigned long POWER_LOG_INTERVAL_MS = 1000;
 
 float currentLeftForceLbs = 0.0f;
 float currentRightForceLbs = 0.0f;
@@ -14,6 +15,7 @@ float currentRPM = 0.0f;
 unsigned long lastLeftForceMs = 0;
 unsigned long lastRightForceMs = 0;
 unsigned long lastRPMMs = 0;
+unsigned long lastPowerLogMs = 0;
 
 float freshOrZero(float value, unsigned long sampleTimeMs, unsigned long timeoutMs) {
     if (sampleTimeMs == 0) {
@@ -32,6 +34,7 @@ void initPowerCalc() {
     lastLeftForceMs = 0;
     lastRightForceMs = 0;
     lastRPMMs = 0;
+    lastPowerLogMs = 0;
 }
 
 void addLeftForce(float force) {
@@ -62,12 +65,17 @@ void updatePowerCalc() {
     
     // Write to the global used by Motor Control
     riderWatts = (double)(torqueNm * angVel);
-    
-    /* 
-    // Optional debug printing, can be noisy
-    Serial.print("Left: "); Serial.print(leftForceLbs);
-    Serial.print(" | Right: "); Serial.print(rightForceLbs);
-    Serial.print(" | RPM: "); Serial.print(rpm);
-    Serial.print(" -> Rider Watts: "); Serial.println(riderWatts);
-    */
+
+    const unsigned long now = millis();
+    if (now - lastPowerLogMs >= POWER_LOG_INTERVAL_MS) {
+        lastPowerLogMs = now;
+        Serial.print("Left Force: ");
+        Serial.print(leftForceLbs, 2);
+        Serial.print(" lbs | Right Force: ");
+        Serial.print(rightForceLbs, 2);
+        Serial.print(" lbs | RPM: ");
+        Serial.print(rpm, 1);
+        Serial.print(" | Rider Watts: ");
+        Serial.println(riderWatts, 1);
+    }
 }

@@ -14,29 +14,27 @@ HardwareSerial GPS_Serial(2);
 
 static unsigned long lastElevCall = 0;
 static unsigned long lastGpsLog = 0;
-#define ELEV_INTERVAL_MS 3000
-#define GPS_LOG_INTERVAL_MS 3000
+static unsigned long terrainInitMs = 0;
+static unsigned long lastWifiRetryMs = 0;
+static bool gpsTimeoutReached = false;
+static bool gpsRecoveryLogged = false;
+
+constexpr unsigned long ELEV_INTERVAL_MS = 3000;
+constexpr unsigned long GPS_LOG_INTERVAL_MS = 3000;
+constexpr unsigned long GPS_FIX_TIMEOUT_MS = 15000;
+constexpr unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
 
 void initTerrainPredict() {
     Serial.println("Initializing Terrain Predict...");
 
     GPS_Serial.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    terrainInitMs = millis();
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.printf("Trying SSID: '%s' Password: '%s'\n", WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connecting to WiFi");
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 40) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
-    }
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nWiFi connected: " + WiFi.localIP().toString());
-    } else {
-        Serial.println("\nWiFi failed — elevation API unavailable");
-    }
+    lastWifiRetryMs = terrainInitMs;
+    Serial.printf("Started WiFi connection to SSID '%s'\n", WIFI_SSID);
+    Serial.println("Terrain prediction will continue without GPS if no fix is found before timeout.");
 }
 
 void updateTerrainPredict() {
@@ -45,19 +43,34 @@ void updateTerrainPredict() {
     }
 
     if (!gps.location.isValid()) {
-        if (millis() - lastGpsLog >= GPS_LOG_INTERVAL_MS) {
+        if (!gpsTimeoutReached && millis() - lastGpsLog >= GPS_LOG_INTERVAL_MS) {
             lastGpsLog = millis();
             Serial.printf("Waiting for GPS fix... chars=%u sentences=%u failed=%u\n",
                 gps.charsProcessed(), gps.sentencesWithFix(), gps.failedChecksum());
         }
+
+        if (!gpsTimeoutReached && (millis() - terrainInitMs) >= GPS_FIX_TIMEOUT_MS) {
+            gpsTimeoutReached = true;
+            Serial.println("GPS timeout reached — continuing without terrain/GPS data until a fix appears.");
+        }
+
         return;
+    }
+
+    if (gpsTimeoutReached && !gpsRecoveryLogged) {
+        Serial.println("GPS fix acquired after timeout — terrain prediction resumed.");
+        gpsRecoveryLogged = true;
+        gpsTimeoutReached = false;
     }
 
     if (millis() - lastElevCall < ELEV_INTERVAL_MS) return;
     lastElevCall = millis();
 
     if (WiFi.status() != WL_CONNECTED) {
-        WiFi.reconnect();
+        if (millis() - lastWifiRetryMs >= WIFI_RETRY_INTERVAL_MS) {
+            lastWifiRetryMs = millis();
+            WiFi.reconnect();
+        }
         return;
     }
 
