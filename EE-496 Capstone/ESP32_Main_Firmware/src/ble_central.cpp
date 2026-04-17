@@ -1,6 +1,7 @@
 #include "ble_central.h"
 #include "power_calc.h"
 #include <BLEDevice.h>
+#include <esp_bt.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
@@ -151,6 +152,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 
 void initBLECentral() {
     Serial.println("Initializing BLE Central...");
+    esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
     BLEDevice::init("");
     pBLEScan = BLEDevice::getScan(); 
     pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
