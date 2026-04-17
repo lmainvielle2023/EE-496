@@ -3,7 +3,6 @@
 #include "secrets.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
 #include <HardwareSerial.h>
 #include <TinyGPSPlus.h>
 #include <ArduinoJson.h>
@@ -67,11 +66,10 @@ void updateTerrainPredict() {
     double aheadLat = lat2 * RAD_TO_DEG;
     double aheadLon = lon2 * RAD_TO_DEG;
 
-    WiFiClientSecure client;
-    client.setInsecure();
+    WiFiClient client;
 
     HTTPClient http;
-    String url = "https://api.opentopodata.org/v1/srtm90m";
+    String url = "http://api.opentopodata.org/v1/srtm90m";
     String body = "locations=";
     body += String(myLat, 6) + "," + String(myLng, 6);
     body += "|" + String(aheadLat, 6) + "," + String(aheadLon, 6);
