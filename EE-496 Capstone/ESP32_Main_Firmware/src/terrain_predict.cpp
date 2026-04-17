@@ -3,6 +3,7 @@
 #include "secrets.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <HardwareSerial.h>
 #include <TinyGPSPlus.h>
 #include <ArduinoJson.h>
@@ -12,7 +13,9 @@ TinyGPSPlus gps;
 HardwareSerial GPS_Serial(2);
 
 static unsigned long lastElevCall = 0;
+static unsigned long lastGpsLog = 0;
 #define ELEV_INTERVAL_MS 3000
+#define GPS_LOG_INTERVAL_MS 3000
 
 void initTerrainPredict() {
     Serial.println("Initializing Terrain Predict...");
@@ -41,7 +44,14 @@ void updateTerrainPredict() {
         gps.encode(GPS_Serial.read());
     }
 
-    if (!gps.location.isValid()) return;
+    if (!gps.location.isValid()) {
+        if (millis() - lastGpsLog >= GPS_LOG_INTERVAL_MS) {
+            lastGpsLog = millis();
+            Serial.printf("Waiting for GPS fix... chars=%u sentences=%u failed=%u\n",
+                gps.charsProcessed(), gps.sentencesWithFix(), gps.failedChecksum());
+        }
+        return;
+    }
 
     if (millis() - lastElevCall < ELEV_INTERVAL_MS) return;
     lastElevCall = millis();
@@ -64,10 +74,11 @@ void updateTerrainPredict() {
     double aheadLat = lat2 * RAD_TO_DEG;
     double aheadLon = lon2 * RAD_TO_DEG;
 
-    WiFiClient client;
+    WiFiClientSecure client;
+    client.setInsecure();
 
     HTTPClient http;
-    String url = "http://api.opentopodata.org/v1/srtm90m";
+    String url = "https://api.opentopodata.org/v1/srtm90m";
     String body = "locations=";
     body += String(myLat, 6) + "," + String(myLng, 6);
     body += "|" + String(aheadLat, 6) + "," + String(aheadLon, 6);
