@@ -6,7 +6,6 @@
 volatile long encoderPulses = 0;
 
 // Setup constants
-const float GOAL_WATTS = 200.0f;
 const float MAX_MOTOR_WATTS = 200.0f; // Scale reference for prototype
 
 // IRAM_ATTR places the routine into Internal RAM for fast execution on ESP32
@@ -51,8 +50,8 @@ const double TOTAL_PPR = GEAR_RATIO * PULSES_PER_REV;
 double currentMotorRPM = 0;
 
 void updateMotorControl() {
-    // 1. Calculate the motor power required to reach the 200W Goal
-    float requiredMotorWatts = GOAL_WATTS - (float)riderWatts;
+    // 1. Calculate the motor power required to reach the external goal
+    float requiredMotorWatts = (float)targetGoalWatts - (float)riderWatts;
     
     // Clamp to 0 (motor doesn't fight rider or brake them)
     if (requiredMotorWatts < 0.0f) {

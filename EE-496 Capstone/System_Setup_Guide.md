@@ -9,7 +9,7 @@ This guide covers the full command-line workflow to build, flash, calibrate, and
   - `xiaoble_left`
   - `xiaoble_right`
 - `ESP32_Main_Firmware/`
-  Central controller firmware for BLE collection, power math, terrain logic, and motor control.
+  Central controller firmware for BLE collection, rider power math, external goal-watts BLE intake, and motor control.
 - `System_Setup_Guide.md`
   This setup guide.
 
@@ -41,8 +41,18 @@ Wire both pedal nodes the same way:
 - L298N `ENA` -> `GPIO 14`
 - L298N `IN1` -> `GPIO 27`
 - L298N `IN2` -> `GPIO 26`
-- GPS `TX` -> `GPIO 16`
-- GPS `RX` -> `GPIO 17`
+
+### Optional External Goal-Watts ESP
+
+The main ESP32 can now connect to a third BLE node that publishes a target goal wattage.
+
+Expected BLE identity for that external ESP:
+
+- Local name: `GOAL_WATTS_NODE`
+- Service UUID: `7D200000-E8F2-537E-4F6C-D104768A1214`
+- Characteristic UUID: `7D200001-E8F2-537E-4F6C-D104768A1214`
+
+The value is expected to be a BLE `float` representing the new target wattage.
 
 ## 3. Software Prerequisites
 
@@ -96,17 +106,14 @@ board = xiaoblesense
 
 for both pedal environments. If your left pedal is a non-Sense XIAO BLE, update the board target before flashing that node.
 
-### Wi-Fi secrets for the ESP32
+### GPS and Wi-Fi note
 
-Before flashing the ESP32, edit:
+GPS and terrain logic have been removed from the main ESP32 firmware. The main ESP now focuses on:
 
-`ESP32_Main_Firmware/include/secrets.h`
-
-and set:
-
-- `WIFI_SSID`
-- `WIFI_PASSWORD`
-- `ELEVATION_API_KEY`
+- left crank BLE input
+- right crank BLE input
+- optional external goal-watts BLE input
+- motor control
 
 ## 5. Build Commands
 
@@ -243,12 +250,14 @@ Use this order each time you want to run the full system:
 1. Flash the left pedal with `xiaoble_left`.
 2. Flash the right pedal with `xiaoble_right`.
 3. Flash the ESP32 with `esp32dev`.
-4. Open the right pedal serial monitor and confirm it reports force and RPM.
-5. Open the left pedal serial monitor and confirm it reports force.
-6. Open the ESP32 serial monitor and confirm it discovers:
+4. If you have an external goal-watts ESP, power it on and make sure it advertises as `GOAL_WATTS_NODE`.
+5. Open the right pedal serial monitor and confirm it reports force and RPM.
+6. Open the left pedal serial monitor and confirm it reports force.
+7. Open the ESP32 serial monitor and confirm it discovers:
    - `CRANK_LEFT`
    - `CRANK_RIGHT`
-7. Confirm the ESP32 prints successful BLE connections and begins using pedal force/RPM data.
+   - optionally `GOAL_WATTS_NODE`
+8. Confirm the ESP32 prints successful BLE connections and begins using pedal force/RPM data.
 
 ## 10. What Each Node Does
 
@@ -269,10 +278,13 @@ Use this order each time you want to run the full system:
 ### ESP32 central
 
 - Scans for `CRANK_LEFT` and `CRANK_RIGHT`
+- Optionally scans for `GOAL_WATTS_NODE`
 - Subscribes to force notifications from both pedals
 - Subscribes to RPM notifications from the right pedal
+- Optionally subscribes to target wattage notifications from a third BLE ESP
 - Computes rider power from fresh force and RPM data
-- Runs terrain prediction and motor control
+- Uses the external goal wattage when available, otherwise defaults to `200 W`
+- Runs motor control
 
 ## 11. Troubleshooting
 
@@ -307,6 +319,15 @@ The current firmware should now clear stale force to zero after a short timeout.
 - Confirm the right node advertises `CRANK_RIGHT`
 - Make sure both pedals are powered before the ESP32 starts scanning
 - Watch the ESP32 serial output for `Found LEFT Node`, `Found RIGHT Node`, and `Successfully connected`
+
+### External goal-watts ESP does not connect
+
+- Confirm it advertises as `GOAL_WATTS_NODE`
+- Confirm it exposes:
+  - service `7D200000-E8F2-537E-4F6C-D104768A1214`
+  - characteristic `7D200001-E8F2-537E-4F6C-D104768A1214`
+- Confirm the characteristic contains a BLE `float`
+- Watch the ESP32 serial output for `Found GOAL node` and `Successfully connected to Goal-Watts Node`
 
 ### RPM is zero on the right pedal
 
