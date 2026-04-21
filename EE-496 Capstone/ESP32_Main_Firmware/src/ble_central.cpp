@@ -9,7 +9,8 @@
 
 // Shared Rider Power 
 double riderWatts = 0.0;
-double targetGoalWatts = 200.0;
+constexpr double DEFAULT_GOAL_WATTS = 200.0;
+double targetGoalWatts = DEFAULT_GOAL_WATTS;
 
 // BLE UUIDs for Crank Sensors
 static BLEUUID serviceUUID("19B10000-E8F2-537E-4F6C-D104768A1214");
@@ -105,7 +106,10 @@ class MyClientCallbackGoal : public BLEClientCallbacks {
   }
   void onDisconnect(BLEClient* pclient) {
     connectedGoal = false;
+    targetGoalWatts = DEFAULT_GOAL_WATTS;
     Serial.println("Disconnected from Goal-Watts Node");
+    Serial.print("Falling back to default goal watts: ");
+    Serial.println(targetGoalWatts, 1);
   }
 };
 
@@ -258,8 +262,8 @@ void updateBLECentral() {
       doConnectGoal = false;
     }
     
-    // Only scan if one of them is missing.
-    if ((!connectedLeft || !connectedRight || !connectedGoal) && (millis() - lastScanTime >= SCAN_INTERVAL_MS)) {
+    // Keep the crank links mandatory. The external goal node is optional.
+    if ((!connectedLeft || !connectedRight) && (millis() - lastScanTime >= SCAN_INTERVAL_MS)) {
         lastScanTime = millis();
         pBLEScan->start(2, true);  // non-blocking
         pBLEScan->clearResults();
