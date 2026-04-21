@@ -67,14 +67,22 @@ void updatePowerCalc() {
     riderWatts = (double)(torqueNm * angVel);
 
     const unsigned long now = millis();
-    if (isBLEConnected() && now - lastPowerLogMs >= POWER_LOG_INTERVAL_MS) {
+    if (now - lastPowerLogMs >= POWER_LOG_INTERVAL_MS) {
         lastPowerLogMs = now;
-        Serial.print("Left Force: ");
+        Serial.print("Left[");
+        Serial.print(isLeftCrankConnected() ? "OK" : "DISC");
+        Serial.print("]: ");
         Serial.print(leftForceLbs, 2);
-        Serial.print(" lbs | Right Force: ");
+        Serial.print(" lbs | Right[");
+        Serial.print(isRightCrankConnected() ? "OK" : "DISC");
+        Serial.print("]: ");
         Serial.print(rightForceLbs, 2);
         Serial.print(" lbs | RPM: ");
         Serial.print(rpm, 1);
+        Serial.print(" | Goal[");
+        Serial.print(isGoalNodeConnected() ? "OK" : "DISC");
+        Serial.print("]: ");
+        Serial.print(getTargetGoalWatts(), 1);
         Serial.print(" | Rider Watts: ");
         Serial.println(riderWatts, 1);
     }

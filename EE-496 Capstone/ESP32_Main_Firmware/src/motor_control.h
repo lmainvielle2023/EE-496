@@ -5,7 +5,6 @@
 
 // Global shared variables (read by Manager, updated by Worker)
 extern volatile long encoderPulses;
-extern double currentRPM;
 
 // Initialization routine
 void initMotorControl();

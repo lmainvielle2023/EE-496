@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "system_pins.h"
 #include "motor_control.h"
-#include "terrain_predict.h"
 #include "ble_central.h"
 #include "power_calc.h"
 
@@ -18,14 +17,13 @@ void setup() {
     delay(1000); // Give serial monitor time to attach
     Serial.println("Starting ESP32 E-Bike Controller...");
 
-    // BLE must init before WiFi to claim contiguous RAM for BT controller
+    // BLE initializes the crank and goal-watts links.
     initMotorControl();
     initBLECentral();
-    initTerrainPredict();
     initPowerCalc();
 
     // Create Manager Task pinned to Core 0
-    // Handles BLE, GPS, WiFi, and HTTP requests
+    // Handles BLE and power math
     xTaskCreatePinnedToCore(
         TaskCore0_Manager,    // Task function
         "ManagerTask",        // Task name
@@ -65,11 +63,8 @@ void TaskCore0_Manager(void *pvParameters) {
         // Run BLE Scan & Data Extraction
         updateBLECentral();
 
-        // Run power math (averages and torque)
+        // Run power math from crank data
         updatePowerCalc();
-
-        // Run GPS Parse & Terrain WiFi Prediction
-        updateTerrainPredict();
 
         // Delay to yield to FreeRTOS idle task
         vTaskDelay(pdMS_TO_TICKS(50));
