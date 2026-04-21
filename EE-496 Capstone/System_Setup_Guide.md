@@ -163,7 +163,7 @@ If needed, specify the port:
 pio run -e xiaoble_right -t upload --upload-port /dev/cu.usbmodem101
 ```
 
-### Flash the ESP32
+### Flash the ESP32 
 
 Plug in the ESP32, then run:
 
