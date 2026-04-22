@@ -6,10 +6,10 @@ BLEService crankService("19B10000-E8F2-537E-4F6C-D104768A1214");
 BLEFloatCharacteristic forceCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);
 BLEFloatCharacteristic rpmCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);
 
-static bool isRightPedal = false;
+static bool isSenseNode = false;
 
-void initBLEBroadcaster(bool isRightNode) {
-    isRightPedal = isRightNode;
+void initBLEBroadcaster(bool isSensePedalNode) {
+    isSenseNode = isSensePedalNode;
     Serial.println("Initializing BLE Broadcaster...");
     
     if (!BLE.begin()) {
@@ -18,17 +18,17 @@ void initBLEBroadcaster(bool isRightNode) {
     }
     
     // Set up local name based on node type
-    if (isRightPedal) {
-        BLE.setLocalName("CRANK_RIGHT");
+    if (isSenseNode) {
+        BLE.setLocalName("CRANK_SENSE");
     } else {
-        BLE.setLocalName("CRANK_LEFT");
+        BLE.setLocalName("CRANK_REGULAR");
     }
     BLE.setAdvertisedService(crankService);
     
     // Add characteristics to the service
     crankService.addCharacteristic(forceCharacteristic);
     
-    if (isRightPedal) {
+    if (isSenseNode) {
         crankService.addCharacteristic(rpmCharacteristic);
         rpmCharacteristic.writeValue(0.0f);
     }
@@ -43,7 +43,7 @@ void initBLEBroadcaster(bool isRightNode) {
     BLE.advertise();
     
     Serial.print("BLE Broadcaster Initialized & Advertising as ");
-    Serial.println(isRightPedal ? "CRANK_RIGHT" : "CRANK_LEFT");
+    Serial.println(isSenseNode ? "CRANK_SENSE" : "CRANK_REGULAR");
 }
 
 void updateBLEBroadcaster(float current_force, float current_rpm) {
@@ -53,7 +53,7 @@ void updateBLEBroadcaster(float current_force, float current_rpm) {
     BLEDevice central = BLE.central();
     if (central) {
         forceCharacteristic.writeValue(current_force);
-        if (isRightPedal) {
+        if (isSenseNode) {
             rpmCharacteristic.writeValue(current_rpm);
         }
     }

@@ -4,23 +4,23 @@
 #include "load_cell.h"
 #include <Arduino.h>
 
-#ifndef PEDAL_IS_RIGHT_NODE
-#error "PEDAL_IS_RIGHT_NODE must be set in platformio.ini"
+#ifndef PEDAL_IS_SENSE_NODE
+#error "PEDAL_IS_SENSE_NODE must be set in platformio.ini"
 #endif
 
-constexpr bool kIsRightPedalNode = PEDAL_IS_RIGHT_NODE != 0;
+constexpr bool kIsSenseNode = PEDAL_IS_SENSE_NODE != 0;
 
 void setup() {
   Serial.begin(115200);
   delay(1000); // Give serial monitor time to attach
-  Serial.println(kIsRightPedalNode ? "Starting XIAO Crank Sensor Node (RIGHT)..."
-                                   : "Starting XIAO Crank Sensor Node (LEFT)...");
+  Serial.println(kIsSenseNode ? "Starting XIAO Crank Sensor Node (SENSE)..."
+                              : "Starting XIAO Crank Sensor Node (REGULAR)...");
 
   // Initialize systems
   initLoadCell();
-  initBLEBroadcaster(kIsRightPedalNode);
+  initBLEBroadcaster(kIsSenseNode);
 
-  if (kIsRightPedalNode) {
+  if (kIsSenseNode) {
     initIMU();
   }
 }
@@ -32,8 +32,8 @@ void loop() {
   float force = getPedalForce();
   float rpm = 0.0f;
 
-  // 2. Read IMU for RPM if we are the Right Node
-  if (kIsRightPedalNode) {
+  // 2. Read IMU for RPM only on the Sense node
+  if (kIsSenseNode) {
     rpm = getPedalRPM();
   }
 
@@ -42,7 +42,7 @@ void loop() {
     lastPrintMs = millis();
     Serial.print("Force (lbs): ");
     Serial.print(force, 2);
-    if (kIsRightPedalNode) {
+    if (kIsSenseNode) {
       Serial.print(" | RPM: ");
       Serial.print(rpm, 1);
     }

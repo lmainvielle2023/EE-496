@@ -9,11 +9,11 @@ constexpr unsigned long FORCE_STALE_MS = 400;
 constexpr unsigned long RPM_STALE_MS = 400;
 constexpr unsigned long POWER_LOG_INTERVAL_MS = 1000;
 
-float currentLeftForceLbs = 0.0f;
-float currentRightForceLbs = 0.0f;
+float currentRegularForceLbs = 0.0f;
+float currentSenseForceLbs = 0.0f;
 float currentRPM = 0.0f;
-unsigned long lastLeftForceMs = 0;
-unsigned long lastRightForceMs = 0;
+unsigned long lastRegularForceMs = 0;
+unsigned long lastSenseForceMs = 0;
 unsigned long lastRPMMs = 0;
 unsigned long lastPowerLogMs = 0;
 
@@ -28,23 +28,23 @@ float freshOrZero(float value, unsigned long sampleTimeMs, unsigned long timeout
 } // namespace
 
 void initPowerCalc() {
-    currentLeftForceLbs = 0.0f;
-    currentRightForceLbs = 0.0f;
+    currentRegularForceLbs = 0.0f;
+    currentSenseForceLbs = 0.0f;
     currentRPM = 0.0f;
-    lastLeftForceMs = 0;
-    lastRightForceMs = 0;
+    lastRegularForceMs = 0;
+    lastSenseForceMs = 0;
     lastRPMMs = 0;
     lastPowerLogMs = 0;
 }
 
-void addLeftForce(float force) {
-    currentLeftForceLbs = max(force, 0.0f);
-    lastLeftForceMs = millis();
+void addRegularForce(float force) {
+    currentRegularForceLbs = max(force, 0.0f);
+    lastRegularForceMs = millis();
 }
 
-void addRightForce(float force) {
-    currentRightForceLbs = max(force, 0.0f);
-    lastRightForceMs = millis();
+void addSenseForce(float force) {
+    currentSenseForceLbs = max(force, 0.0f);
+    lastSenseForceMs = millis();
 }
 
 void setRPM(float r) {
@@ -53,13 +53,13 @@ void setRPM(float r) {
 }
 
 void updatePowerCalc() {
-    const float leftForceLbs = freshOrZero(currentLeftForceLbs, lastLeftForceMs, FORCE_STALE_MS);
-    const float rightForceLbs = freshOrZero(currentRightForceLbs, lastRightForceMs, FORCE_STALE_MS);
+    const float regularForceLbs = freshOrZero(currentRegularForceLbs, lastRegularForceMs, FORCE_STALE_MS);
+    const float senseForceLbs = freshOrZero(currentSenseForceLbs, lastSenseForceMs, FORCE_STALE_MS);
     const float rpm = freshOrZero(currentRPM, lastRPMMs, RPM_STALE_MS);
 
     // Assumes each load cell has been calibrated to the tangential pedal force
     // that produces crank torque.
-    const float totalForceNewtons = (leftForceLbs + rightForceLbs) * LBS_TO_NEWTONS;
+    const float totalForceNewtons = (regularForceLbs + senseForceLbs) * LBS_TO_NEWTONS;
     float torqueNm = totalForceNewtons * CRANK_LENGTH_M;
     float angVel = rpm * (2.0f * PI / 60.0f);
     
@@ -69,14 +69,14 @@ void updatePowerCalc() {
     const unsigned long now = millis();
     if (now - lastPowerLogMs >= POWER_LOG_INTERVAL_MS) {
         lastPowerLogMs = now;
-        Serial.print("Left[");
-        Serial.print(isLeftCrankConnected() ? "OK" : "DISC");
+        Serial.print("Regular[");
+        Serial.print(isRegularCrankConnected() ? "OK" : "DISC");
         Serial.print("]: ");
-        Serial.print(leftForceLbs, 2);
-        Serial.print(" lbs | Right[");
-        Serial.print(isRightCrankConnected() ? "OK" : "DISC");
+        Serial.print(regularForceLbs, 2);
+        Serial.print(" lbs | Sense[");
+        Serial.print(isSenseCrankConnected() ? "OK" : "DISC");
         Serial.print("]: ");
-        Serial.print(rightForceLbs, 2);
+        Serial.print(senseForceLbs, 2);
         Serial.print(" lbs | RPM: ");
         Serial.print(rpm, 1);
         Serial.print(" | Goal[");

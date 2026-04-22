@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-void initBLEBroadcaster(bool isRightNode);
+void initBLEBroadcaster(bool isSenseNode);
 void updateBLEBroadcaster(float current_force, float current_rpm);
 
 #endif // BLE_BROADCASTER_H
