@@ -22,19 +22,19 @@ static BLEUUID goalServiceUUID("7D200000-E8F2-537E-4F6C-D104768A1214");
 static BLEUUID goalCharUUID("7D200001-E8F2-537E-4F6C-D104768A1214");
 
 // States
-static boolean doConnectLeft = false;
-static boolean doConnectRight = false;
+static boolean doConnectRegular = false;
+static boolean doConnectSense = false;
 static boolean doConnectGoal = false;
-static boolean connectedLeft = false;
-static boolean connectedRight = false;
+static boolean connectedRegular = false;
+static boolean connectedSense = false;
 static boolean connectedGoal = false;
 
-static BLEAdvertisedDevice* myDeviceLeft = nullptr;
-static BLEAdvertisedDevice* myDeviceRight = nullptr;
+static BLEAdvertisedDevice* myDeviceRegular = nullptr;
+static BLEAdvertisedDevice* myDeviceSense = nullptr;
 static BLEAdvertisedDevice* myDeviceGoal = nullptr;
 
-static BLEClient* pClientLeft = nullptr;
-static BLEClient* pClientRight = nullptr;
+static BLEClient* pClientRegular = nullptr;
+static BLEClient* pClientSense = nullptr;
 static BLEClient* pClientGoal = nullptr;
 
 static BLEScan* pBLEScan;
@@ -42,19 +42,19 @@ static unsigned long lastScanTime = 0;
 #define SCAN_INTERVAL_MS 5000
 
 // Notify Callbacks
-static void notifyCallbackLeftForce(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+static void notifyCallbackRegularForce(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
     if (length == sizeof(float)) {
         float val;
         memcpy(&val, pData, sizeof(float));
-        addLeftForce(val);
+        addRegularForce(val);
     }
 }
 
-static void notifyCallbackRightForce(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+static void notifyCallbackSenseForce(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
     if (length == sizeof(float)) {
         float val;
         memcpy(&val, pData, sizeof(float));
-        addRightForce(val);
+        addSenseForce(val);
     }
 }
 
@@ -77,25 +77,25 @@ static void notifyCallbackGoalWatts(BLERemoteCharacteristic* pBLERemoteCharacter
 }
 
 // Client Callbacks
-class MyClientCallbackLeft : public BLEClientCallbacks {
+class MyClientCallbackRegular : public BLEClientCallbacks {
   void onConnect(BLEClient* pclient) {
-    connectedLeft = true;
-    Serial.println("Connected to LEFT Crank Node");
+    connectedRegular = true;
+    Serial.println("Connected to REGULAR Crank Node");
   }
   void onDisconnect(BLEClient* pclient) {
-    connectedLeft = false;
-    Serial.println("Disconnected from LEFT Crank Node");
+    connectedRegular = false;
+    Serial.println("Disconnected from REGULAR Crank Node");
   }
 };
 
-class MyClientCallbackRight : public BLEClientCallbacks {
+class MyClientCallbackSense : public BLEClientCallbacks {
   void onConnect(BLEClient* pclient) {
-    connectedRight = true;
-    Serial.println("Connected to RIGHT Crank Node");
+    connectedSense = true;
+    Serial.println("Connected to SENSE Crank Node");
   }
   void onDisconnect(BLEClient* pclient) {
-    connectedRight = false;
-    Serial.println("Disconnected from RIGHT Crank Node");
+    connectedSense = false;
+    Serial.println("Disconnected from SENSE Crank Node");
   }
 };
 
@@ -113,47 +113,47 @@ class MyClientCallbackGoal : public BLEClientCallbacks {
   }
 };
 
-bool connectToServerLeft() {
-    Serial.print("Connecting to LEFT: ");
-    Serial.println(myDeviceLeft->getAddress().toString().c_str());
-    pClientLeft = BLEDevice::createClient();
-    pClientLeft->setClientCallbacks(new MyClientCallbackLeft());
-    pClientLeft->connect(myDeviceLeft);
+bool connectToServerRegular() {
+    Serial.print("Connecting to REGULAR: ");
+    Serial.println(myDeviceRegular->getAddress().toString().c_str());
+    pClientRegular = BLEDevice::createClient();
+    pClientRegular->setClientCallbacks(new MyClientCallbackRegular());
+    pClientRegular->connect(myDeviceRegular);
 
-    BLERemoteService* pRemoteService = pClientLeft->getService(serviceUUID);
+    BLERemoteService* pRemoteService = pClientRegular->getService(serviceUUID);
     if (pRemoteService == nullptr) {
-      pClientLeft->disconnect();
+      pClientRegular->disconnect();
       return false;
     }
 
     BLERemoteCharacteristic* pForceChar = pRemoteService->getCharacteristic(forceCharUUID);
     if (pForceChar && pForceChar->canNotify()) {
-      pForceChar->registerForNotify(notifyCallbackLeftForce);
+      pForceChar->registerForNotify(notifyCallbackRegularForce);
     }
 
     return true;
 }
 
-bool connectToServerRight() {
-    Serial.print("Connecting to RIGHT: ");
-    Serial.println(myDeviceRight->getAddress().toString().c_str());
-    pClientRight = BLEDevice::createClient();
-    pClientRight->setClientCallbacks(new MyClientCallbackRight());
-    pClientRight->connect(myDeviceRight);
+bool connectToServerSense() {
+    Serial.print("Connecting to SENSE: ");
+    Serial.println(myDeviceSense->getAddress().toString().c_str());
+    pClientSense = BLEDevice::createClient();
+    pClientSense->setClientCallbacks(new MyClientCallbackSense());
+    pClientSense->connect(myDeviceSense);
 
-    BLERemoteService* pRemoteService = pClientRight->getService(serviceUUID);
+    BLERemoteService* pRemoteService = pClientSense->getService(serviceUUID);
     if (pRemoteService == nullptr) {
-      pClientRight->disconnect();
+      pClientSense->disconnect();
       return false;
     }
 
     // Force Characteristic
     BLERemoteCharacteristic* pForceChar = pRemoteService->getCharacteristic(forceCharUUID);
     if (pForceChar && pForceChar->canNotify()) {
-      pForceChar->registerForNotify(notifyCallbackRightForce);
+      pForceChar->registerForNotify(notifyCallbackSenseForce);
     }
 
-    // RPM Characteristic (only on right)
+    // RPM Characteristic is only published by the Sense node
     BLERemoteCharacteristic* pRpmChar = pRemoteService->getCharacteristic(rpmCharUUID);
     if (pRpmChar && pRpmChar->canNotify()) {
       pRpmChar->registerForNotify(notifyCallbackRPM);
@@ -203,19 +203,19 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) {
       if (advertisedDevice.haveName()) {
         std::string devName = advertisedDevice.getName();
-        if (devName == "CRANK_LEFT" && !connectedLeft && !doConnectLeft) {
-            Serial.print("Found LEFT Node: ");
+        if (devName == "CRANK_REGULAR" && !connectedRegular && !doConnectRegular) {
+            Serial.print("Found REGULAR Node: ");
             Serial.println(advertisedDevice.getAddress().toString().c_str());
-            if (myDeviceLeft != nullptr) delete myDeviceLeft;
-            myDeviceLeft = new BLEAdvertisedDevice(advertisedDevice);
-            doConnectLeft = true;
+            if (myDeviceRegular != nullptr) delete myDeviceRegular;
+            myDeviceRegular = new BLEAdvertisedDevice(advertisedDevice);
+            doConnectRegular = true;
         } 
-        else if (devName == "CRANK_RIGHT" && !connectedRight && !doConnectRight) {
-            Serial.print("Found RIGHT Node: ");
+        else if (devName == "CRANK_SENSE" && !connectedSense && !doConnectSense) {
+            Serial.print("Found SENSE Node: ");
             Serial.println(advertisedDevice.getAddress().toString().c_str());
-            if (myDeviceRight != nullptr) delete myDeviceRight;
-            myDeviceRight = new BLEAdvertisedDevice(advertisedDevice);
-            doConnectRight = true;
+            if (myDeviceSense != nullptr) delete myDeviceSense;
+            myDeviceSense = new BLEAdvertisedDevice(advertisedDevice);
+            doConnectSense = true;
         }
         else if (devName == "GOAL_WATTS_NODE" && !connectedGoal && !doConnectGoal) {
             Serial.print("Found GOAL node: ");
@@ -241,18 +241,18 @@ void initBLECentral() {
 }
 
 void updateBLECentral() {
-    if (doConnectLeft) {
-      if (connectToServerLeft()) {
-        Serial.println("Successfully connected to LEFT Node.");
+    if (doConnectRegular) {
+      if (connectToServerRegular()) {
+        Serial.println("Successfully connected to REGULAR Node.");
       }
-      doConnectLeft = false;
+      doConnectRegular = false;
     }
 
-    if (doConnectRight) {
-      if (connectToServerRight()) {
-        Serial.println("Successfully connected to RIGHT Node.");
+    if (doConnectSense) {
+      if (connectToServerSense()) {
+        Serial.println("Successfully connected to SENSE Node.");
       }
-      doConnectRight = false;
+      doConnectSense = false;
     }
 
     if (doConnectGoal) {
@@ -263,19 +263,19 @@ void updateBLECentral() {
     }
     
     // Rescan whenever any node is missing
-    if ((!connectedLeft || !connectedRight || !connectedGoal) && (millis() - lastScanTime >= SCAN_INTERVAL_MS)) {
+    if ((!connectedRegular || !connectedSense || !connectedGoal) && (millis() - lastScanTime >= SCAN_INTERVAL_MS)) {
         lastScanTime = millis();
         pBLEScan->start(2, true);  // non-blocking
         pBLEScan->clearResults();
     }
 }
 
-bool isLeftCrankConnected() {
-    return connectedLeft;
+bool isRegularCrankConnected() {
+    return connectedRegular;
 }
 
-bool isRightCrankConnected() {
-    return connectedRight;
+bool isSenseCrankConnected() {
+    return connectedSense;
 }
 
 bool isGoalNodeConnected() {

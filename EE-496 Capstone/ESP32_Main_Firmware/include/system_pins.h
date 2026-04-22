@@ -10,8 +10,4 @@
 #define ENCODER_A_PIN 32 // Phase A Interrupt
 #define ENCODER_B_PIN 33 // Phase B Interrupt
 
-// U-blox NEO-6M GPS UART Pins
-#define GPS_RX_PIN 16
-#define GPS_TX_PIN 17
-
 #endif // SYSTEM_PINS_H

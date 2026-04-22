@@ -4,8 +4,8 @@
 #include <Arduino.h>
 
 void initPowerCalc();
-void addLeftForce(float force);
-void addRightForce(float force);
+void addRegularForce(float force);
+void addSenseForce(float force);
 void setRPM(float rpm);
 void updatePowerCalc();
 

@@ -13,8 +13,8 @@ void initBLECentral();
 // Core 0 Manager Routine
 void updateBLECentral();
 
-bool isLeftCrankConnected();
-bool isRightCrankConnected();
+bool isRegularCrankConnected();
+bool isSenseCrankConnected();
 bool isGoalNodeConnected();
 double getTargetGoalWatts();
 
