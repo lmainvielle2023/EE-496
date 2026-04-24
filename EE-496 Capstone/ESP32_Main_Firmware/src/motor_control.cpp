@@ -6,7 +6,7 @@
 volatile long encoderPulses = 0;
 
 // Setup constants
-const float MAX_MOTOR_WATTS = 200.0f; // Scale reference for prototype
+const float MAX_MOTOR_WATTS = 3.0f; // Scale reference for 3 W demo goal
 
 // IRAM_ATTR places the routine into Internal RAM for fast execution on ESP32
 void IRAM_ATTR encoderISR() {
@@ -21,10 +21,14 @@ void IRAM_ATTR encoderISR() {
 void initMotorControl() {
     Serial.println("Initializing Motor Control...");
 
-    // Setup L298N Output Pins
+    // Setup TB6612FNG channel A output pins
     pinMode(MOTOR_ENA_PIN, OUTPUT);
     pinMode(MOTOR_IN1_PIN, OUTPUT);
     pinMode(MOTOR_IN2_PIN, OUTPUT);
+#ifdef MOTOR_STBY_PIN
+    pinMode(MOTOR_STBY_PIN, OUTPUT);
+    digitalWrite(MOTOR_STBY_PIN, HIGH);
+#endif
 
     // Initial stop
     digitalWrite(MOTOR_IN1_PIN, LOW);

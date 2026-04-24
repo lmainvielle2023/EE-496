@@ -7,6 +7,7 @@ BLEFloatCharacteristic forceCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214
 BLEFloatCharacteristic rpmCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);
 
 static bool isSenseNode = false;
+static bool sendRpmNext = false;
 
 void initBLEBroadcaster(bool isSensePedalNode) {
     isSenseNode = isSensePedalNode;
@@ -20,8 +21,10 @@ void initBLEBroadcaster(bool isSensePedalNode) {
     // Set up local name based on node type
     if (isSenseNode) {
         BLE.setLocalName("CRANK_SENSE");
+        BLE.setDeviceName("CRANK_SENSE");
     } else {
         BLE.setLocalName("CRANK_REGULAR");
+        BLE.setDeviceName("CRANK_REGULAR");
     }
     BLE.setAdvertisedService(crankService);
     
@@ -30,14 +33,16 @@ void initBLEBroadcaster(bool isSensePedalNode) {
     
     if (isSenseNode) {
         crankService.addCharacteristic(rpmCharacteristic);
-        rpmCharacteristic.writeValue(0.0f);
     }
     
-    // Add service to the BLE stack
+    // FIX: Add service to the BLE stack FIRST
     BLE.addService(crankService);
     
-    // Set initial value for the characteristic
+    // FIX: Set initial values AFTER the service is added
     forceCharacteristic.writeValue(0.0f);
+    if (isSenseNode) {
+        rpmCharacteristic.writeValue(0.0f);
+    }
     
     // Start advertising
     BLE.advertise();
@@ -52,9 +57,13 @@ void updateBLEBroadcaster(float current_force, float current_rpm) {
     // Only update if connected to a central device to save power/bandwidth
     BLEDevice central = BLE.central();
     if (central) {
-        forceCharacteristic.writeValue(current_force);
-        if (isSenseNode) {
+        if (isSenseNode && sendRpmNext) {
             rpmCharacteristic.writeValue(current_rpm);
+        } else {
+            forceCharacteristic.writeValue(current_force);
         }
+        sendRpmNext = !sendRpmNext;
+    } else {
+        sendRpmNext = false;
     }
 }

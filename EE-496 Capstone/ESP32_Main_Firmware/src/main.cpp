@@ -81,7 +81,7 @@ void TaskCore1_Worker(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (true) {
-        // Run PID calculation and adjust L298N PWM
+        // Run PID calculation and adjust motor PWM
         updateMotorControl();
 
         // Delay exactly up to the next 10ms boundary, maintaining strict 100Hz loop
