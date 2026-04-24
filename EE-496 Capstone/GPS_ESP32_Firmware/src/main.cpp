@@ -4,7 +4,7 @@
 
 // The baseline watt target before terrain adjustment.
 // Uphill adds up to 100W, downhill subtracts up to 100W.
-constexpr float BASE_GOAL_WATTS = 200.0f;
+constexpr float BASE_GOAL_WATTS = 3.0f;
 
 void setup() {
     Serial.begin(115200);

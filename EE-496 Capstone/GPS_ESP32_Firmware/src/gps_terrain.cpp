@@ -26,12 +26,7 @@ constexpr unsigned long GPS_LOG_INTERVAL_MS  = 3000;
 constexpr unsigned long GPS_FIX_TIMEOUT_MS   = 300000; // 5 min
 constexpr unsigned long WIFI_RETRY_MS        = 5000;
 
-// Terrain modifier constants
-// These turn an elevation delta (metres) into a watt adjustment.
-// +/- 2m dead-band, then linearly up to +/- MAX_WATT_ADJUST over 15m.
-constexpr float ELEV_DEADBAND_M   = 2.0f;
-constexpr float ELEV_SCALE_M      = 15.0f;
-constexpr float MAX_WATT_ADJUST   = 100.0f; // max boost/reduction in watts
+constexpr float ELEV_DEADBAND_M = 2.0f;
 
 void initGPSTerrain() {
     Serial.println("Initializing GPS Terrain...");
@@ -44,17 +39,13 @@ void initGPSTerrain() {
     Serial.printf("Connecting to WiFi SSID: %s\n", WIFI_SSID);
 }
 
-// Returns a watt adjustment based on terrain delta.
-// Positive = uphill boost, negative = downhill reduction.
-static float terrainWattAdjust(double elevDeltaM) {
+static float applyTerrainMultiplier(float baseGoalWatts, double elevDeltaM) {
     if (elevDeltaM > ELEV_DEADBAND_M) {
-        float raw = (float)(elevDeltaM - ELEV_DEADBAND_M) / ELEV_SCALE_M;
-        return constrain(raw, 0.0f, 1.0f) * MAX_WATT_ADJUST;
+        return baseGoalWatts * 2.0f;   // uphill
     } else if (elevDeltaM < -ELEV_DEADBAND_M) {
-        float raw = (float)(elevDeltaM + ELEV_DEADBAND_M) / ELEV_SCALE_M;
-        return constrain(raw, -1.0f, 0.0f) * MAX_WATT_ADJUST;
+        return baseGoalWatts / 2.0f;   // downhill
     }
-    return 0.0f;
+    return baseGoalWatts;              // flat
 }
 
 float updateGPSTerrain(float baseGoalWatts) {
@@ -136,8 +127,7 @@ float updateGPSTerrain(float baseGoalWatts) {
             double elevAhead = doc["results"][1]["elevation"].as<double>();
             double delta     = elevAhead - elevNow;
 
-            float adjustment = terrainWattAdjust(delta);
-            goalWatts = baseGoalWatts + adjustment;
+            goalWatts = applyTerrainMultiplier(baseGoalWatts, delta);
 
             const char* terrain = (delta > ELEV_DEADBAND_M) ? "UPHILL" :
                                   (delta < -ELEV_DEADBAND_M) ? "DOWNHILL" : "FLAT";

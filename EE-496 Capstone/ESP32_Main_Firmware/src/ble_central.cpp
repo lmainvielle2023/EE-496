@@ -9,7 +9,7 @@
 
 // Shared Rider Power 
 double riderWatts = 0.0;
-constexpr double DEFAULT_GOAL_WATTS = 200.0;
+constexpr double DEFAULT_GOAL_WATTS = 3.0;
 double targetGoalWatts = DEFAULT_GOAL_WATTS;
 
 // BLE UUIDs for Crank Sensors
