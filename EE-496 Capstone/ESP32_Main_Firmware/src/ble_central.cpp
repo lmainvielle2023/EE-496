@@ -9,7 +9,7 @@
 
 // Shared Rider Power 
 double riderWatts = 0.0;
-constexpr double DEFAULT_GOAL_WATTS = 200.0;
+constexpr double DEFAULT_GOAL_WATTS = 75.0;
 double targetGoalWatts = DEFAULT_GOAL_WATTS;
 
 // BLE UUIDs for Crank Sensors
@@ -40,6 +40,7 @@ static BLEClient* pClientGoal = nullptr;
 static BLEScan* pBLEScan;
 static unsigned long lastScanTime = 0;
 #define SCAN_INTERVAL_MS 5000
+constexpr bool BLE_SCAN_DEBUG = true;
 
 // Notify Callbacks
 static void notifyCallbackRegularForce(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
@@ -116,6 +117,8 @@ class MyClientCallbackGoal : public BLEClientCallbacks {
 bool connectToServerRegular() {
     Serial.print("Connecting to REGULAR: ");
     Serial.println(myDeviceRegular->getAddress().toString().c_str());
+    pBLEScan->stop();
+    delay(100);
     pClientRegular = BLEDevice::createClient();
     pClientRegular->setClientCallbacks(new MyClientCallbackRegular());
     pClientRegular->connect(myDeviceRegular);
@@ -137,6 +140,8 @@ bool connectToServerRegular() {
 bool connectToServerSense() {
     Serial.print("Connecting to SENSE: ");
     Serial.println(myDeviceSense->getAddress().toString().c_str());
+    pBLEScan->stop();
+    delay(100);
     pClientSense = BLEDevice::createClient();
     pClientSense->setClientCallbacks(new MyClientCallbackSense());
     pClientSense->connect(myDeviceSense);
@@ -158,6 +163,16 @@ bool connectToServerSense() {
     if (pRpmChar && pRpmChar->canNotify()) {
       pRpmChar->registerForNotify(notifyCallbackRPM);
     }
+    if (pRpmChar && pRpmChar->canRead()) {
+      std::string value = pRpmChar->readValue();
+      if (value.size() == sizeof(float)) {
+        float val;
+        memcpy(&val, value.data(), sizeof(float));
+        setRPM(val);
+        Serial.print("Initial SENSE RPM read: ");
+        Serial.println(val, 1);
+      }
+    }
 
     return true;
 }
@@ -165,6 +180,8 @@ bool connectToServerSense() {
 bool connectToServerGoal() {
     Serial.print("Connecting to GOAL node: ");
     Serial.println(myDeviceGoal->getAddress().toString().c_str());
+    pBLEScan->stop();
+    delay(100);
     pClientGoal = BLEDevice::createClient();
     pClientGoal->setClientCallbacks(new MyClientCallbackGoal());
     pClientGoal->connect(myDeviceGoal);
@@ -204,6 +221,10 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
       if (advertisedDevice.haveName()) {
         std::string devName = advertisedDevice.getName();
         if (devName == "CRANK_REGULAR" && !connectedRegular && !doConnectRegular) {
+            if (BLE_SCAN_DEBUG) {
+                Serial.print("BLE scan saw REGULAR: ");
+                Serial.println(advertisedDevice.getAddress().toString().c_str());
+            }
             Serial.print("Found REGULAR Node: ");
             Serial.println(advertisedDevice.getAddress().toString().c_str());
             if (myDeviceRegular != nullptr) delete myDeviceRegular;
@@ -211,6 +232,10 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
             doConnectRegular = true;
         } 
         else if (devName == "CRANK_SENSE" && !connectedSense && !doConnectSense) {
+            if (BLE_SCAN_DEBUG) {
+                Serial.print("BLE scan saw SENSE: ");
+                Serial.println(advertisedDevice.getAddress().toString().c_str());
+            }
             Serial.print("Found SENSE Node: ");
             Serial.println(advertisedDevice.getAddress().toString().c_str());
             if (myDeviceSense != nullptr) delete myDeviceSense;
@@ -218,6 +243,10 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
             doConnectSense = true;
         }
         else if (devName == "GOAL_WATTS_NODE" && !connectedGoal && !doConnectGoal) {
+            if (BLE_SCAN_DEBUG) {
+                Serial.print("BLE scan saw GOAL: ");
+                Serial.println(advertisedDevice.getAddress().toString().c_str());
+            }
             Serial.print("Found GOAL node: ");
             Serial.println(advertisedDevice.getAddress().toString().c_str());
             if (myDeviceGoal != nullptr) delete myDeviceGoal;

@@ -1,6 +1,7 @@
 #include "load_cell.h"
 #include "crank_pins.h"
 #include <HX711.h>
+#include <kvstore_global_api.h>
 #include <math.h>
 
 namespace {
@@ -15,10 +16,11 @@ HX711 scale;
 //   4. Place a known weight (e.g. 5 lbs) on the load cell
 //   5. Send '+'/'-' for coarse adjust (±100)
 //   6. Send 'f'/'g' for fine adjust (±10)
-//   7. Note the printed calibration factor and update below
+//   7. Send 's' to save the calibration factor to flash
 // ============================================================
-float calibrationFactor = -2280.0f;
+float calibrationFactor = 2280.0f;
 
+constexpr const char *kCalibrationFactorKey = "/kv/load_cell_cal_factor";
 constexpr float kForceFilterAlpha = 0.25f;
 constexpr float kZeroDeadbandLbs = 0.30f;
 constexpr float kMaxZeroMeanLbs = 1.00f;
@@ -30,7 +32,7 @@ constexpr unsigned long kZeroSampleTimeoutMs = 250;
 constexpr unsigned long kInterSampleDelayMs = 20;
 constexpr uint8_t kDiscardedStartupSamples = 10;
 constexpr uint8_t kZeroValidationSamples = 8;
-constexpr uint8_t kTareSamples = 15;
+constexpr uint8_t kTareSamples = 25;
 constexpr bool kLoadCellDebug = false;
 
 float filteredForceLbs = 0.0f;
@@ -42,6 +44,53 @@ unsigned long lastDebugPrintMs = 0;
 void resetForceFilter() {
   filteredForceLbs = 0.0f;
   filterInitialized = false;
+}
+
+bool calibrationFactorLooksValid(float factor) {
+  return isfinite(factor) && fabsf(factor) >= 1.0f && fabsf(factor) <= 1000000.0f;
+}
+
+void printCalibrationFactor() {
+  Serial.print("Calibration Factor: ");
+  Serial.println(calibrationFactor, 3);
+}
+
+void loadSavedCalibrationFactor() {
+  float savedFactor = 0.0f;
+  size_t actualSize = 0;
+
+  const int result = kv_get(kCalibrationFactorKey, &savedFactor, sizeof(savedFactor), &actualSize);
+  if (result == 0 && actualSize == sizeof(savedFactor) && calibrationFactorLooksValid(savedFactor)) {
+    calibrationFactor = savedFactor;
+    Serial.print("Loaded saved calibration factor: ");
+    Serial.println(calibrationFactor, 3);
+    return;
+  }
+
+  Serial.print("Using default calibration factor: ");
+  Serial.println(calibrationFactor, 3);
+}
+
+void saveCalibrationFactor() {
+  const int result = kv_set(kCalibrationFactorKey, &calibrationFactor, sizeof(calibrationFactor), 0);
+  if (result == 0) {
+    Serial.print("Saved calibration factor: ");
+    Serial.println(calibrationFactor, 3);
+  } else {
+    Serial.print("Calibration save failed, error: ");
+    Serial.println(result);
+    Serial.println("Use the printed factor to update load_cell.cpp manually if needed.");
+  }
+}
+
+void clearSavedCalibrationFactor() {
+  const int result = kv_remove(kCalibrationFactorKey);
+  if (result == 0) {
+    Serial.println("Saved calibration factor cleared.");
+  } else {
+    Serial.print("Clear saved calibration failed, error: ");
+    Serial.println(result);
+  }
 }
 
 float publishForce(float filteredForce) {
@@ -111,6 +160,25 @@ bool zeroScaleIfStable(const char *context) {
   return true;
 }
 
+bool forceZeroScale(const char *context) {
+  Serial.print("Forcing ");
+  Serial.print(context);
+  Serial.println(" zero. Keep the pedal unloaded...");
+
+  if (!scale.wait_ready_timeout(kZeroSampleTimeoutMs)) {
+    Serial.println("Zero skipped: HX711 not ready.");
+    return false;
+  }
+
+  scale.tare(kTareSamples);
+  resetForceFilter();
+  lastFreshSampleMs = millis();
+
+  Serial.print("Zero complete. Offset: ");
+  Serial.println(scale.get_offset());
+  return true;
+}
+
 void maybePrintDebug(float rawForceLbs, float filteredForce, float publishedForce) {
   if (!kLoadCellDebug) {
     return;
@@ -140,12 +208,30 @@ void checkCalibrationInput() {
                                        "\nPlace a known weight on the sensor."
                                        "\n  '+'/'-' = coarse adjust (±100)"
                                        "\n  'f'/'g' = fine adjust (±10)"
+                                       "\n  's' = save factor to flash"
+                                       "\n  'p' = print current factor"
                                        "\nSend 'c' to exit calibration mode.\n"
                                      : "\n=== CALIBRATION MODE OFF ===\n");
     }
 
     if (c == 't' || c == 'T') {
-      zeroScaleIfStable("manual");
+      forceZeroScale("manual");
+    }
+
+    if (c == 'z' || c == 'Z') {
+      zeroScaleIfStable("manual stable");
+    }
+
+    if (c == 'p' || c == 'P') {
+      printCalibrationFactor();
+    }
+
+    if (c == 's' || c == 'S') {
+      saveCalibrationFactor();
+    }
+
+    if (c == 'r' || c == 'R') {
+      clearSavedCalibrationFactor();
     }
 
     if (!calibrationMode) {
@@ -173,8 +259,7 @@ void checkCalibrationInput() {
     if (changed) {
       scale.set_scale(calibrationFactor);
       resetForceFilter();
-      Serial.print("Calibration Factor: ");
-      Serial.println(calibrationFactor);
+      printCalibrationFactor();
     }
   }
 }
@@ -196,6 +281,7 @@ void initLoadCell() {
     delay(kInterSampleDelayMs);
   }
 
+  loadSavedCalibrationFactor();
   scale.set_scale(calibrationFactor);
 
   if (!zeroScaleIfStable("startup")) {
@@ -203,7 +289,7 @@ void initLoadCell() {
   }
 
   Serial.println("Load Cell initialization complete.");
-  Serial.println(">>> Send 't' to zero | 'c' for calibration <<<");
+  Serial.println(">>> Send 't' to force zero | 'z' for stable zero | 'c' for calibration | 's' to save factor <<<");
 }
 
 float getPedalForce() {

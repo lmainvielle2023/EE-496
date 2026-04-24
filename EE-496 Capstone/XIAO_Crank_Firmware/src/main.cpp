@@ -16,13 +16,13 @@ void setup() {
   Serial.println(kIsSenseNode ? "Starting XIAO Crank Sensor Node (SENSE)..."
                               : "Starting XIAO Crank Sensor Node (REGULAR)...");
 
-  // Initialize systems
-  initLoadCell();
-  initBLEBroadcaster(kIsSenseNode);
-
   if (kIsSenseNode) {
     initIMU();
   }
+
+  // Initialize systems
+  initLoadCell();
+  initBLEBroadcaster(kIsSenseNode);
 }
 
 void loop() {

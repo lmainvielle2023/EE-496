@@ -21,10 +21,14 @@ void IRAM_ATTR encoderISR() {
 void initMotorControl() {
     Serial.println("Initializing Motor Control...");
 
-    // Setup L298N Output Pins
+    // Setup TB6612FNG channel A output pins
     pinMode(MOTOR_ENA_PIN, OUTPUT);
     pinMode(MOTOR_IN1_PIN, OUTPUT);
     pinMode(MOTOR_IN2_PIN, OUTPUT);
+#ifdef MOTOR_STBY_PIN
+    pinMode(MOTOR_STBY_PIN, OUTPUT);
+    digitalWrite(MOTOR_STBY_PIN, HIGH);
+#endif
 
     // Initial stop
     digitalWrite(MOTOR_IN1_PIN, LOW);
