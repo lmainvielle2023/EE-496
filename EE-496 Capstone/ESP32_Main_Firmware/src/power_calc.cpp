@@ -52,6 +52,10 @@ void setRPM(float r) {
     lastRPMMs = millis();
 }
 
+float getCurrentRPM() {
+    return currentRPM;
+}
+
 void updatePowerCalc() {
     const float regularForceLbs = freshOrZero(currentRegularForceLbs, lastRegularForceMs, FORCE_STALE_MS);
     const float senseForceLbs = freshOrZero(currentSenseForceLbs, lastSenseForceMs, FORCE_STALE_MS);

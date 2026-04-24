@@ -3,6 +3,7 @@
 #include "motor_control.h"
 #include "ble_central.h"
 #include "power_calc.h"
+#include "lcd_display.h"
 
 // Task handles
 TaskHandle_t ManagerTaskHandle;
@@ -21,6 +22,7 @@ void setup() {
     initMotorControl();
     initBLECentral();
     initPowerCalc();
+    initLCD();
 
     // Create Manager Task pinned to Core 0
     // Handles BLE and power math
@@ -65,6 +67,9 @@ void TaskCore0_Manager(void *pvParameters) {
 
         // Run power math from crank data
         updatePowerCalc();
+
+        // Update LCD display
+        updateLCD();
 
         // Delay to yield to FreeRTOS idle task
         vTaskDelay(pdMS_TO_TICKS(50));

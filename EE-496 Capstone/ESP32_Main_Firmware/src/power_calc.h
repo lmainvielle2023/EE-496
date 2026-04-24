@@ -8,5 +8,6 @@ void addRegularForce(float force);
 void addSenseForce(float force);
 void setRPM(float rpm);
 void updatePowerCalc();
+float getCurrentRPM();
 
 #endif // POWER_CALC_H
