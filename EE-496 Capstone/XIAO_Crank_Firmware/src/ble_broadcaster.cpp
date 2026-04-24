@@ -33,14 +33,16 @@ void initBLEBroadcaster(bool isSensePedalNode) {
     
     if (isSenseNode) {
         crankService.addCharacteristic(rpmCharacteristic);
-        rpmCharacteristic.writeValue(0.0f);
     }
     
-    // Add service to the BLE stack
+    // FIX: Add service to the BLE stack FIRST
     BLE.addService(crankService);
     
-    // Set initial value for the characteristic
+    // FIX: Set initial values AFTER the service is added
     forceCharacteristic.writeValue(0.0f);
+    if (isSenseNode) {
+        rpmCharacteristic.writeValue(0.0f);
+    }
     
     // Start advertising
     BLE.advertise();

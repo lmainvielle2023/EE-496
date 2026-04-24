@@ -1,8 +1,14 @@
 #include "imu_rpm.h"
 #include <Wire.h>
 #include <math.h>
+#include <hal/nrf_gpio.h> // Force hardware-level GPIO control
 
 namespace {
+
+// The actual hardware pin for the IMU LDO on the Seeed XIAO nRF52840 Sense
+// is Port 1, Pin 8 (P1.08). We use the Nordic HAL directly to avoid 
+// Arduino pin mapping/PlatformIO environment mismatch issues.
+const uint32_t kImuPowerPin = NRF_GPIO_PIN_MAP(1, 8);
 
 constexpr uint8_t kWhoAmIRegister = 0x0F;
 constexpr uint8_t kCtrl2GRegister = 0x11;
@@ -37,12 +43,12 @@ bool readRegistersFrom(TwoWire &wire, uint8_t address, uint8_t startRegister,
   wire.beginTransmission(address);
   wire.write(startRegister);
   
-  // The LSM6DS3 REQUIRES a repeated start to hold the register pointer. 
-  // We ignore the return value here because the nRF52 TWIM driver 
-  // occasionally returns a false error when queuing repeated starts.
-  wire.endTransmission(false);
+  // Seeed's official library uses a standard STOP condition, so we will too.
+  // This correctly checks if the IMU is actually powered and ACKing.
+  if (wire.endTransmission() != 0) {
+    return false;
+  }
 
-  // Now request the data. If this fails, it returns 0.
   if (wire.requestFrom(address, static_cast<uint8_t>(length)) != length) {
     return false;
   }
@@ -102,8 +108,6 @@ bool tryDetectImu(TwoWire &wire, const char *wireName, uint8_t address) {
 }
 
 bool detectImuOnAnyBus() {
-  // FIX: Let the clocks default to 100kHz. 400kHz on the internal pull-ups 
-  // rounds off the signal edges and corrupts the repeated-start timing.
   Wire.begin();
   Wire1.begin();
 
@@ -145,34 +149,23 @@ bool readGyroDps(float &gx, float &gy, float &gz) {
 void initIMU() {
   Serial.println("Initializing IMU (direct I2C mode)...");
 
-  // FIX: Removed the D30/D29 macros. They belong to the Arduino Nano 33 BLE.
-  // The Seeed XIAO Sense only needs PIN_LSM6DS3TR_C_POWER to operate.
-#ifdef PIN_LSM6DS3TR_C_POWER
-  pinMode(PIN_LSM6DS3TR_C_POWER, OUTPUT);
-  digitalWrite(PIN_LSM6DS3TR_C_POWER, HIGH);
-#endif
+  nrf_gpio_cfg_output(kImuPowerPin);
+  nrf_gpio_pin_set(kImuPowerPin);
 
-  // Wait a moment for the IMU to boot before poking the I2C bus
-  delay(100);
-
-  if (!detectImuOnAnyBus()) {
-#ifdef PIN_LSM6DS3TR_C_POWER
-    Serial.println("IMU not found. Attempting a proper power cycle...");
-    digitalWrite(PIN_LSM6DS3TR_C_POWER, LOW);
+  // FIX: Allow up to 1 full second for the IMU to boot on battery power
+  bool imuFound = false;
+  for (int i = 0; i < 10; i++) {
     delay(100);
-    digitalWrite(PIN_LSM6DS3TR_C_POWER, HIGH);
-    delay(100);
-    
-    if (!detectImuOnAnyBus()) {
-      Serial.println("IMU Error: Device not found on Wire/Wire1 at 0x6A/0x6B.");
-      imuInitialized = false;
-      return;
+    if (detectImuOnAnyBus()) {
+      imuFound = true;
+      break;
     }
-#else
+  }
+
+  if (!imuFound) {
     Serial.println("IMU Error: Device not found on Wire/Wire1 at 0x6A/0x6B.");
     imuInitialized = false;
     return;
-#endif
   }
 
   Serial.print("IMU selected address 0x");

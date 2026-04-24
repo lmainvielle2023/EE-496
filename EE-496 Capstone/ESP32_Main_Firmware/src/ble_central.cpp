@@ -152,17 +152,25 @@ bool connectToServerSense() {
       return false;
     }
 
-    // Force Characteristic
+    // 1. Subscribe to Force
     BLERemoteCharacteristic* pForceChar = pRemoteService->getCharacteristic(forceCharUUID);
     if (pForceChar && pForceChar->canNotify()) {
       pForceChar->registerForNotify(notifyCallbackSenseForce);
     }
 
-    // RPM Characteristic is only published by the Sense node
+    // FIX: Give the XIAO a moment to ACK the first subscription
+    delay(200);
+
+    // 2. Subscribe to RPM
     BLERemoteCharacteristic* pRpmChar = pRemoteService->getCharacteristic(rpmCharUUID);
     if (pRpmChar && pRpmChar->canNotify()) {
       pRpmChar->registerForNotify(notifyCallbackRPM);
     }
+    
+    // FIX: Give the XIAO another moment before hitting it with a Read Request
+    delay(200);
+
+    // 3. Read initial RPM
     if (pRpmChar && pRpmChar->canRead()) {
       std::string value = pRpmChar->readValue();
       if (value.size() == sizeof(float)) {

@@ -6,7 +6,7 @@
 volatile long encoderPulses = 0;
 
 // Setup constants
-const float MAX_MOTOR_WATTS = 200.0f; // Scale reference for prototype
+const float MAX_MOTOR_WATTS = 75.0f; // Scale reference for 75 W demo goal
 
 // IRAM_ATTR places the routine into Internal RAM for fast execution on ESP32
 void IRAM_ATTR encoderISR() {
